@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Reminder BT</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui,sans-serif;background:#0f1923;color:#e0e0e0;padding:20px;max-width:600px;margin:0 auto}
+h1{color:#4fc3f7;text-align:center;margin:20px 0}
+.card{background:#1a2733;border:1px solid #2a3f50;border-radius:10px;padding:20px;margin:15px 0}
+h2{color:#4fc3f7;font-size:1.1em;margin-bottom:12px}
+input,select{width:100%;padding:10px;background:#0d1a23;border:1px solid #2a3f50;border-radius:6px;color:#e0e0e0;margin:6px 0;font:inherit}
+button{background:#4fc3f7;color:#0f1923;border:none;padding:10px 24px;border-radius:6px;font-weight:600;cursor:pointer;margin:8px 4px}
+button.del{background:#e57373;color:#fff}
+.item{background:#0d1a23;border:1px solid #2a3f50;border-radius:6px;padding:12px;margin:8px 0;display:flex;justify-content:space-between;align-items:center}
+.status{display:inline-block;padding:2px 10px;border-radius:12px;font-size:.8em;font-weight:600}
+.s-pending{background:#ffa72633;color:#ffa726}
+.s-triggered{background:#4fc3f733;color:#4fc3f7}
+.s-played{background:#66bb6a33;color:#66bb6a}
+.msg{text-align:center;padding:8px;margin:4px 0;border-radius:6px}
+.msg-ok{background:#66bb6a33;color:#66bb6a}
+.msg-err{background:#e5737333;color:#e57373}
+</style>
+</head>
+<body>
+<h1>Reminder BT</h1>
+<div class="card">
+<h2>New Reminder</h2>
+<input id="title" placeholder="Title (required)">
+<input id="content" placeholder="Content">
+<input type="datetime-local" id="time">
+<select id="repeat"><option value="none">Once</option><option value="daily">Daily</option><option value="weekly">Weekly</option></select>
+<div id="msg"></div>
+<button onclick="create()">Create</button>
+</div>
+<div class="card">
+<h2>Reminders</h2>
+<div id="list">Loading...</div>
+</div>
+<script>
+var A="/api/reminders";
+function msg(t,c){var m=document.getElementById("msg");m.textContent=t;m.className="msg msg-"+c;setTimeout(function(){m.textContent="";m.className="msg"},3000)}
+async function load(){
+  try{var r=await fetch(A);var d=await r.json();
+    var h=d.sort(function(a,b){return b.created_at.localeCompare(a.created_at)}).map(function(r){
+      return '<div class="item"><div><b>'+escapeHtml(r.title||"?")+'</b><br><small>'+escapeHtml(r.trigger_time||"")+' | '+escapeHtml(r.repeat_type)+'</small><br><span class="status s-'+r.status+'">'+r.status+'</span></div><div><button onclick="trig(\x27'+r.id+'\x27)">Trigger</button><button class="del" onclick="del(\x27'+r.id+'\x27)">X</button></div></div>';
+    }).join('');
+    document.getElementById("list").innerHTML=h||"No reminders"
+  }catch(e){console.error(e)}
+}
+async function create(){
+  var title=document.getElementById("title").value.trim();
+  if(!title){msg("Title required!","err");return}
+  var timeVal=document.getElementById("time").value;
+  var triggerTime=timeVal?new Date(timeVal).toISOString():new Date().toISOString();
+  var b={title:title,content:document.getElementById("content").value.trim(),trigger_time:triggerTime,is_repeating:document.getElementById("repeat").value!=="none",repeat_type:document.getElementById("repeat").value};
+  try{
+    var r=await fetch(A,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)});
+    if(r.ok){msg("Created: "+title,"ok");document.getElementById("title").value="";document.getElementById("content").value="";load()}
+    else{msg("Failed: "+r.status,"err")}
+  }catch(e){msg("Error: "+e.message,"err")}
+}
+async function trig(id){try{await fetch(A+"/"+id+"/trigger",{method:"POST"});msg("Triggered!","ok");load()}catch(e){msg("Error: "+e.message,"err")}}
+async function del(id){try{await fetch(A+"/"+id,{method:"DELETE"});msg("Deleted","ok");load()}catch(e){msg("Error: "+e.message,"err")}}
+function escapeHtml(s){var d=document.createElement("div");d.textContent=s;return d.innerHTML}
+load();setInterval(load,8000)
+</script>
+</body>
+</html>
