@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>叮叮提醒 - Reminder BT</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"Segoe UI","Microsoft YaHei",sans-serif;background:#0f1923;color:#e0e0e0;min-height:100vh}
+.header{background:#152230;border-bottom:1px solid #1e3347;padding:0 24px;position:sticky;top:0;z-index:100}
+.header-inner{max-width:960px;margin:0 auto;display:flex;align-items:center;height:64px;gap:20px}
+.header h1{font-size:1.3em;color:#4fc3f7}
+.clock{color:#78909c;font-size:.9em;flex:1}
+.btn{padding:8px 20px;border:none;border-radius:6px;font-size:.9em;font-weight:600;cursor:pointer}
+.btn-primary{background:#4fc3f7;color:#0f1923}.btn-primary:hover{background:#29b6f6}
+.btn-secondary{background:#263749;color:#90a4ae}.btn-secondary:hover{background:#314a61}
+.btn-danger{background:#e57373;color:#fff}.btn-danger:hover{background:#ef5350}
+.main{max-width:960px;margin:24px auto;padding:0 24px}
+.config-bar{background:#1a2733;border:1px solid #2a3f50;border-radius:8px;padding:12px 16px;margin-bottom:20px;display:flex;gap:12px;align-items:center}
+.config-bar label{color:#90a4ae;font-size:.85em}
+.config-bar input{width:200px;padding:8px;background:#0d1a23;border:1px solid #2a3f50;border-radius:6px;color:#e0e0e0}
+.config-bar .status{font-size:.85em}
+.config-bar .online{color:#66bb6a}.config-bar .offline{color:#e57373}
+.reminder-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+.card{background:#1a2733;border:1px solid #2a3f50;border-radius:12px;padding:20px;transition:transform .2s,border-color .2s}
+.card:hover{transform:translateY(-2px);border-color:#4fc3f7}
+.card .card-title{font-size:1.1em;font-weight:600;margin-bottom:8px}
+.card .card-content{color:#78909c;font-size:.9em;margin-bottom:12px;line-height:1.5}
+.card .card-meta{display:flex;gap:16px;font-size:.85em;color:#546e7a;margin-bottom:12px}
+.card .card-repeat{background:#4fc3f720;color:#4fc3f7;padding:2px 10px;border-radius:12px;font-size:.8em}
+.card .card-actions{display:flex;gap:8px}
+.status-badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:.75em;font-weight:600}
+.s-pending{background:#ffa72633;color:#ffa726}
+.s-triggered{background:#4fc3f733;color:#4fc3f7}
+.s-played{background:#66bb6a33;color:#66bb6a}
+.empty-state{grid-column:1/-1;text-align:center;padding:60px 20px;color:#546e7a}
+.empty-state .big-icon{font-size:3em;margin-bottom:16px}
+.modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:#00000080;z-index:200;align-items:center;justify-content:center}
+.modal-overlay.show{display:flex}
+.modal{background:#1a2733;border:1px solid #2a3f50;border-radius:16px;padding:28px;width:90%;max-width:480px}
+.modal h2{color:#4fc3f7;margin-bottom:20px}
+.form-group{margin-bottom:14px}.form-group label{display:block;color:#90a4ae;font-size:.85em;margin-bottom:4px}
+.form-group input,.form-group select{width:100%;padding:10px;background:#0d1a23;border:1px solid #2a3f50;border-radius:8px;color:#e0e0e0;font:inherit}
+.form-group input:focus,.form-group select:focus{outline:none;border-color:#4fc3f7}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.modal-actions{display:flex;justify-content:flex-end;gap:12px;margin-top:20px}
+.msg{text-align:center;padding:8px;margin-top:8px;border-radius:8px;font-size:.85em}
+.msg-ok{background:#66bb6a20;color:#66bb6a}
+.msg-err{background:#e5737320;color:#e57373}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#66bb6a;color:#fff;padding:12px 24px;border-radius:8px;font-weight:600;z-index:300;display:none}
+.toast.show{display:block}
+.toast.err{background:#e57373}
+</style>
+</head>
+<body>
+<div class="header"><div class="header-inner">
+  <h1>🔔 叮叮提醒</h1>
+  <div class="clock" id="clock"></div>
+  <button class="btn btn-primary" onclick="openModal()">+ 新增提醒</button>
+</div></div>
+<div class="main">
+  <div class="config-bar">
+    <label>板子地址:</label>
+    <input id="boardHost" value="192.168.1.52:8001" onchange="saveConfig()">
+    <span class="status" id="connStatus">检测中...</span>
+    <button class="btn btn-secondary" onclick="testConn()">测试连接</button>
+  </div>
+  <div class="reminder-grid" id="grid"></div>
+</div>
+<div class="modal-overlay" id="overlay" onclick="closeModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h2>新增提醒</h2>
+    <div class="form-group"><label>标题 *</label><input id="title" placeholder="例如：吃药时间"></div>
+    <div class="form-group"><label>内容</label><input id="content" placeholder="提醒内容..."></div>
+    <div class="form-row">
+      <div class="form-group"><label>提醒时间 *</label><input type="datetime-local" id="time"></div>
+      <div class="form-group"><label>重复</label><select id="repeat"><option value="none">不重复</option><option value="daily">每天</option><option value="weekly">每周</option><option value="monthly">每月</option></select></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" onclick="create()">创建并发送到板子</button>
+    </div>
+    <div class="msg" id="msg"></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+var API="";
+function getAPI(){var h=document.getElementById("boardHost").value.trim()||"192.168.1.52:8001";return "http://"+h+"/api/reminders"}
+function saveConfig(){API=getAPI();load()}
+function toast(m,e){var t=document.getElementById("toast");t.textContent=m;t.className="toast show"+(e?" err":"");setTimeout(function(){t.className="toast"},3000)}
+async function testConn(){try{var r=await fetch(API);document.getElementById("connStatus").innerHTML='<span class="online">ONLINE</span>';toast("Connected!")}catch(e){document.getElementById("connStatus").innerHTML='<span class="offline">OFFLINE</span>';toast("Cannot connect",true)}}
+function openModal(){document.getElementById("overlay").classList.add("show")}
+function closeModal(e){if(e&&e.target!==e.currentTarget)return;document.getElementById("overlay").classList.remove("show");document.getElementById("msg").textContent="";document.getElementById("msg").className="msg"}
+function fmt(d){var t=new Date(d);return t.getMonth()+1+"/"+t.getDate()+" "+String(t.getHours()).padStart(2,"0")+":"+String(t.getMinutes()).padStart(2,"0")}
+function esc(s){var d=document.createElement("div");d.textContent=s;return d.innerHTML}
+async function load(){
+  API=getAPI();var g=document.getElementById("grid");
+  try{var r=await fetch(API);var d=await r.json();document.getElementById("connStatus").innerHTML='<span class="online">ONLINE</span>';
+    if(!d.length){g.innerHTML='<div class="empty-state"><div class="big-icon">🔔</div><h2>暂无提醒</h2><p>点击右上角新增提醒</p></div>';return}
+    g.innerHTML=d.sort(function(a,b){return b.created_at.localeCompare(a.created_at)}).map(function(r){var s=r.status||"pending";
+      return '<div class="card"><div class="card-title">'+esc(r.title||"?")+' <span class="status-badge s-'+s+'">'+s+'</span></div><div class="card-content">'+esc(r.content||"")+'</div><div class="card-meta"><span>'+fmt(r.trigger_time)+'</span>'+((r.repeat_type&&r.repeat_type!="none")?'<span class="card-repeat">'+{daily:"每天",weekly:"每周",monthly:"每月"}[r.repeat_type]+'</span>':'')+'</div><div class="card-actions"><button class="btn btn-primary" onclick="trig(\''+r.id+'\')">立即触发</button><button class="btn btn-danger" onclick="del(\''+r.id+'\')">删除</button></div></div>';
+    }).join("")
+  }catch(e){document.getElementById("connStatus").innerHTML='<span class="offline">OFFLINE</span>'}
+}
+async function create(){
+  var t=document.getElementById("title").value.trim();if(!t){document.getElementById("msg").textContent="请输入标题";document.getElementById("msg").className="msg msg-err";return}
+  var tv=document.getElementById("time").value;var tt=tv?new Date(tv).toISOString():new Date().toISOString();
+  var b={title:t,content:document.getElementById("content").value.trim(),trigger_time:tt,is_repeating:document.getElementById("repeat").value!=="none",repeat_type:document.getElementById("repeat").value};
+  try{var r=await fetch(API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)});
+    if(r.ok){closeModal();toast("已发送到板子: "+t);load()}else{var e=await r.json();document.getElementById("msg").textContent="失败: "+(e.detail||r.status);document.getElementById("msg").className="msg msg-err"}
+  }catch(e){document.getElementById("msg").textContent="错误: "+e.message;document.getElementById("msg").className="msg msg-err"}
+}
+async function trig(id){try{await fetch(API+"/"+id+"/trigger",{method:"POST"});toast("已触发!");load()}catch(e){toast("失败",true)}}
+async function del(id){if(!confirm("确认删除?"))return;try{await fetch(API+"/"+id,{method:"DELETE"});toast("已删除");load()}catch(e){toast("失败",true)}}
+API=getAPI();setInterval(function(){document.getElementById("clock").textContent=new Date().toLocaleTimeString("zh-CN")},1000);load();setInterval(load,8000)
+</script>
+</body>
+</html>

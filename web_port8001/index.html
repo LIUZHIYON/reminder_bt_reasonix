@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>叮叮提醒 - Reminder BT</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="header">
+  <div class="header-inner">
+    <h1><span class="icon">🔔</span> 叮叮提醒</h1>
+    <div class="clock" id="clock"></div>
+    <button class="btn btn-primary" onclick="openModal()">+ 新增提醒</button>
+  </div>
+</header>
+<main class="main">
+  <div class="reminder-grid" id="grid"></div>
+</main>
+<div class="modal-overlay" id="overlay" onclick="closeModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h2>新增提醒</h2>
+    <div class="form-group"><label>标题 *</label><input id="title" placeholder="例如：吃药时间"></div>
+    <div class="form-group"><label>内容</label><input id="content" placeholder="提醒内容..."></div>
+    <div class="form-row">
+      <div class="form-group"><label>提醒时间 *</label><input type="datetime-local" id="time"></div>
+      <div class="form-group"><label>重复</label><select id="repeat"><option value="none">不重复</option><option value="daily">每天</option><option value="weekly">每周</option><option value="monthly">每月</option></select></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" onclick="create()">创建</button>
+    </div>
+    <div class="msg" id="msg"></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>
